@@ -1,10 +1,16 @@
 /README.html
 
 *.d
+*.o
 *.csv
 *.hpp
 
 /examples/basic_distributions/triangle
 /examples/basic_distributions/wishart2
 
-/examples/time-series/AR/AR1*
+
+
+examples/identifying_mixture_models/Gauss_mix
+examples/identifying_mixture_models/Gauss_mix.exe
+examples/identifying_mixture_models/Gauss_mix.data.R
+examples/identifying_mixture_models/Gauss_mix.stan
