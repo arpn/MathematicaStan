@@ -130,6 +130,14 @@ SetCmdStanDirectory[directory_String]:=(Export[$CmdStanConfigurationFile,directo
 (*File extensions helper*)
 
 
+(* ::Subsubsection:: *)
+(*FileMultipleExtension*)
+
+
+(* ::Text:: *)
+(*Returns file name extension, if filename="path/XXX.ext1.ext2" returns "ext1.ext2"*)
+
+
 FileMultipleExtension[fileName_String]:=
 	Module[{res},
 	       res=StringSplit[FileNameTake@fileName,"."];
@@ -141,12 +149,24 @@ FileMultipleExtension[fileName_String]:=
 	];
 
 
+(* ::Subsubsection:: *)
+(*CheckFileNameExtensionQ*)
+
+
+(* ::Text:: *)
+(*Check if "fileName" extension is equal to "expectedExt"*)
+
+
 CheckFileNameExtensionQ[fileName_String, expectedExt_String] :=
 	Module[{ext,ok},
 	       ext = FileMultipleExtension[fileName];
 	       ok = ext == expectedExt;
 	       If[Not@ok,Message[CmdStan::incorrectFileExtension, expectedExt, ext]];
 	       ok];
+
+
+(* ::Subsubsection:: *)
+(*generateStanXXX where XXX=filename*)
 
 
 generateStanExecFileName[stanFileName_String] :=

@@ -32,7 +32,15 @@ On[Assert]
 ?"CmdStan`*"
 
 
+(* ::Subsubsection:: *)
+(*CmdStanConfigurationFile exists*)
+
+
 doTest[FileExistsQ@$CmdStanConfigurationFile,True];
+
+
+(* ::Subsubsection:: *)
+(*generateStanDataFileName*)
 
 
 doTest[CmdStan`Private`generateStanExecFileName["/tmp/bernoulli"], If[$OperatingSystem == "Windows","/tmp/bernoulli.exe","/tmp/bernoulli"]]; 
@@ -40,6 +48,19 @@ doTest[CmdStan`Private`generateStanExecFileName["/tmp/bernoulli"], If[$Operating
 doTest[CmdStan`Private`generateStanDataFileName["/tmp/bernoulli.stan"],"/tmp/bernoulli.data.R"];
 doTest[CmdStan`Private`generateStanOutputFileName["/tmp/bernoulli.stan",0], "/tmp/bernoulli.csv"];
 doTest[CmdStan`Private`generateStanOutputFileName["/tmp/bernoulli.stan",1], "/tmp/bernoulli_1.csv"];
+
+
+(* ::Subsubsection:: *)
+(*FileMultipleExtension*)
+
+
+doTest[CmdStan`Private`FileMultipleExtension@"toto.ext1.ext2","ext1.ext2"];
+doTest[CmdStan`Private`FileMultipleExtension@"toto.ext1","ext1"];
+doTest[CmdStan`Private`FileMultipleExtension@"toto",""];
+
+
+(* ::Subsubsection:: *)
+(*CheckFileNameExtensionQ*)
 
 
 doTest[CmdStan`Private`CheckFileNameExtensionQ["/tmp/bernoulli.data.R","data.R"],True];
