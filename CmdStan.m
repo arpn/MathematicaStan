@@ -38,6 +38,9 @@ CmdStan::optionSupport="The option \"`1`\" is not supported in this context";
 
 
 StanVerbose::usage="A boolean option to define verbosity.";
+Chains::usage="An integer option to define the number of chains to use in sampling.";
+ShowProgress::usage="If True, progress information will be reported during sampling."
+PrintStdout::usage="If True, sampler standard output is printed."
 
 
 (* ::Subchapter:: *)
@@ -69,6 +72,7 @@ ExportStanData;
 
 
 RunStan;
+RunStanSample;
 
 
 StanResult;
@@ -464,116 +468,103 @@ RunStan[stanFileName_String, stanOption_StanOptions, opts : OptionsPattern[]] :=
 
 
 (* ::Subchapter:: *)
-(*TODO add Stan Parallel HMC*)
+(*Stan Parallel HMC*)
 
 
-(* TODO: pour l'instant rien fait.... s'inspirer de RunStanOptimize etc...*)
-RunStanSample[stanFileName_String,NJobs_/; NumberQ[NJobs] && (NJobs > 0)]:=
-	Module[{id,pathExecFileName,mutableOption,bufferMutableOption,shellScript="",finalOutputFileName,finalOutputFileNameID,output},
+progressLineQ[str_String]:=StringContainsQ[str, NumberString ~~ " / " ~~ NumberString ~~ " [" ~~ ___ ~~ NumberString ~~ "%]" ~~ ___ ~~ "(" ~~ "Warmup" | "Sampling" ~~ ")"]
 
-	       (* Initialize with user stanOption  *)
-	       mutableOption=Join[immutableStanOptionSample,StanOptionSample[]];
+Options[RunStanSample] = {Chains -> 1, ShowProgress -> False, PrintStdout -> False};
 
-	       If[GetStanOptionPosition["id",mutableOption]!={},
-		  Message[RunStanSample::optionNotSupported,"id"];
-		  Return[$Failed];
-	       ];
-               
-	       (* Generate Executable file name (absolute path) 
-		*)
-	       pathExecFileName=generateStanExecFileName[stanFileName];
-	       If[pathExecFileName===$Failed,Return[$Failed]];
+RunStanSample[stanFileName_String, stanOption_StanOptions:SampleDefaultOptions, OptionsPattern[]]:=
+    Block[{status=""},
+           If[TrueQ[OptionValue[ShowProgress]], 
+              Monitor[runStanSample[stanFileName, stanOption, OptionValue[Chains], OptionValue[PrintStdout]], status],
+              runStanSample[stanFileName, stanOption, OptionValue[Chains], OptionValue[PrintStdout]]
+           ]
+    ];
 
-	       (* Generate Data filen ame (absolute path) and add it to stanOption list
-		*)
-	       mutableOption=completeStanOptionWithDataFileName[pathExecFileName,mutableOption];
-	       If[mutableOption===$Failed,Return[$Failed]];
 
-	       (* Generate script header
-		*)
-	       If[$OperatingSystem=="Windows",
+generateFullOptions[stanFileName_String, stanOption_StanOptions, pid_Integer:0]:=
+    Module[{pathExecFileName, mutableOption},
+              (* Generate Executable file name (absolute path) *)
+              pathExecFileName = generateStanExecFileName[stanFileName];
+              If[pathExecFileName === $Failed, Return[$Failed]];
+           
+              (* Generate Data file name (absolute path) and add it to stanOption list *)
+              mutableOption = completeStanOptionWithDataFileName[pathExecFileName, stanOption];
+              If[mutableOption === $Failed, Return[$Failed]];
 
-		  (* OS = Windows 
-		   *)
-		  Message[CmdStan::OSsupport,$OperatingSystem];
-		  Return[$Failed],
-		  
-		  (* OS = Others (Linux) 
-		   *)
-		  shellScript=shellScript<>"\n#!/bin/bash";
-	       ];
+              (* Generate Output file name *)
+              mutableOption = completeStanOptionWithOutputFileName[stanFileName, mutableOption, pid];
+           {pathExecFileName, mutableOption}
+    ]
 
-	       (* Generate the list of commands: one command per id
-		*  - process id : "id" stanOption
-		*  - output filename : "output file" stanOption
-		*)
-	       For[id=1,id<=NJobs,id++,
-		   (* Create output_ID.csv filename *)
-		   bufferMutableOption=completeStanOptionWithOutputFileName[stanFileName,mutableOption,id];
+runStanSample[stanFileName_String, stanOption_StanOptions:SampleDefaultOptions, chains_Integer, printStdout_?BooleanQ]:=
+    Module[{processArgs, processes, output, i, tmp, chainList, refreshInterval=0.05},
+           (* Check that options are for sampling *)
+           If[Not@stanOptionExistsQ[stanOption, "method"] || getStanOptionValue[stanOption, {"method"}] =!= "sample",
+              Print["Argument \"stanOption\" must have method=sample set."];
+              Return[$Failed]
+           ];
 
-		   (* Create the ID=id stanOption *)
-		   bufferMutableOption=SetStanOption[{{"id",id}}, bufferMutableOption];
+           If[chains > 1,
+              chainList = Table["Chain " <> ToString[i] <> ": ", {i, chains}];
+              processArgs = Table[generateFullOptions[stanFileName, stanOption, pid], {pid, chains}],
+              processArgs = {generateFullOptions[stanFileName, stanOption, 0]}
+           ];
 
-		   (* Form a complete shell comand including the executable *)
-		   If[$OperatingSystem=="Windows",
-
-		      (* OS = Windows 
-		       *)
-		      Message[CmdStan::OSsupport,$OperatingSystem];
-		      Return[$Failed],
-		      
-		      (* OS = Others (Linux) 
-		       *)
-		      shellScript=shellScript<>"\n{ ("<>pathExecFileName<>" "<>stanOptionToCommandLineString[bufferMutableOption]<>") } &";
-		   ];
-	       ]; (* For id *)
-
-	       (* Wait for jobs
-		*)
-	       If[$OperatingSystem=="Windows",
-
-		  (* OS = Windows 
-		   *)
-		  Message[CmdStan::OSsupport,$OperatingSystem];
-		  Return[$Failed],
-		  
-		  (* OS = Others (Linux) 
-		   *)
-		  shellScript=shellScript<>"\nwait";
-	       ];
-
-	       (* Recreate the correct output file name (id=0 and id=1)
-		* id=0 generate the final output file name + bash script filename
-		* id=1 generate ths csv header
-		*)
-	       finalOutputFileName=GetStanOption["output.file",completeStanOptionWithOutputFileName[stanFileName,mutableOption,0]];
-
-	       If[$OperatingSystem=="Windows",
-
-		  (* OS = Windows 
-		   *)
-		  Message[CmdStan::OSsupport,$OperatingSystem];
-		  Return[$Failed],
-
-		  (* OS = Others (Linux) 
-		   *)
-		  For[id=1,id<=NJobs,id++,
-		      finalOutputFileNameID=GetStanOption["output.file",completeStanOptionWithOutputFileName[stanFileName,mutableOption,id]];  
-		      If[id==1,    
-			 (* Create a unique output file *)
-			 shellScript=shellScript<>"\ngrep lp__ " <> finalOutputFileNameID <> " > " <> finalOutputFileName;
-		      ];
-		      shellScript=shellScript<>"\nsed '/^[#l]/d' " <>  finalOutputFileNameID <> " >> " <> finalOutputFileName;
-		  ];
-		  (* Export the final script *)
-		  finalOutputFileNameID=StanRemoveFileNameExt[finalOutputFileName]<>".sh"; (* erase with script file name *)
-		  Export[finalOutputFileNameID,shellScript,"Text"];
-		  (* Execute it! *)
-		  output=Import["!sh "<>finalOutputFileNameID<>" 2>&1","Text"];
-	       ];
-	       
-	       Return[output];
-	];
+           (* Start sampling processes. *)
+           processes = Table[StartProcess[{args[[1]], StringSplit@stanOptionToCommandLineString@args[[2]]}], {args, processArgs}];
+           output = Table[{}, chains];
+           While[AnyTrue[processes, ProcessStatus[#] == "Running"&],
+                 (* Collect output from chains. *)
+                 For[i = 1, i <= chains, i = i+1,
+                     tmp  = ReadString[processes[[i]], EndOfBuffer];
+                     If[tmp =!= EndOfFile,
+                        output[[i]] = output[[i]] ~Join~ StringSplit[tmp, "\n"]
+                     ];
+                 ];
+                 (* Update progress. *)
+                 If[chains > 1,
+                    status = Map[Last@*Select[progressLineQ], output];
+                    status = MapThread[StringJoin, {chainList, status}];
+                    status = TableForm@status,
+                    status = Last@Select[progressLineQ]@output[[1]]
+                 ];
+                 (* Sleep. *)
+                 Pause[refreshInterval];
+           ];
+           (* Collect rest of the output *)
+           For[i = 1, i <= chains, i = i+1,
+               tmp  = ReadString[processes[[i]], EndOfBuffer];
+               If[tmp =!= EndOfFile,
+                  output[[i]] = output[[i]] ~Join~ StringSplit[tmp, "\n"]
+               ];
+           ];
+           (* Check if sampling failed. *)
+           If[AnyTrue[processes, ProcessInformation[#]["ExitCode"] =!= 0&],
+              status = "Failed.";
+              Do[
+              Print["Chain " <> ToString[i] <> ":"];
+              Print[StringRiffle[output[[i]], "\n"]];
+              Print["\n"],
+              {i, chains}];
+              Return[$Failed]
+           ];
+           (* Sampling succeeded. Return output file/files. *)
+           status = "Done.";
+           If[printStdout,
+              Do[
+              Print["Chain " <> ToString[i] <> ":"];
+              Print[StringRiffle[output[[i]], "\n"]];
+              Print["\n"],
+              {i, chains}]
+           ];
+           If[chains > 1,
+              Table[GetStanOption[args[[2]], "output.file"], {args, processArgs}],
+              GetStanOption[processArgs[[1,2]], "output.file"]
+           ]
+    ];
 
 
 (* ::Chapter:: *)
@@ -610,7 +601,8 @@ varNameAsString[data_Association]:=
 (*Import routine*)
 
 
-ImportStanResult::usage="ImportStanResult[outputCSV_?StringQ] import csv stan output file and return a StanResult structure.";
+ImportStanResult::usage="ImportStanResult[outputCSV_?StringQ] import csv stan output file and return a StanResult structure.
+ImportStanResult[outputCSVList_List import multiple stan output files and return a joint StanResult structure.";
 
 ImportStanResult[outputCSV_?StringQ]:= 
 	Module[{data,headerParameter,headerMeta,stringParameter,numericParameter,output},
@@ -638,6 +630,25 @@ ImportStanResult[outputCSV_?StringQ]:=
 
 		   StanResult[output]
 	];
+
+ImportStanResult[outputCSVList_List]:=
+    Module[{results, output},
+           results = Table[ImportStanResult[outputCSV][[1]], {outputCSV, outputCSVList}];
+           (* Merge results to a single result object. *)
+           output = <||>;
+           (* Filenames in a list. *)
+           output["filename"] = Table[result["filename"], {result, results}];
+           (* Meta and parameter data is merged. *)
+           output["meta"] = Merge[Table[result["meta"], {result, results}], Flatten];
+           output["parameter"] = Merge[Table[result["parameter"], {result, results}], Flatten];
+           (* Internal comments are listed, pretty print values equal to first result. *)
+           output["internal"] = <||>;
+           output["internal"]["pretty_print_parameter"] = First[results]["internal"]["pretty_print_parameter"];
+           output["internal"]["pretty_print_meta"] = First[results]["internal"]["pretty_print_meta"];
+           output["internal"]["comments"] = Table[result["internal"]["comments"], {result, results}];
+           (* Wrap into StanResult. *)
+           StanResult[output]
+    ];
 
 
 Format[StanResult[opt_Association]]:="     file: "<>opt["filename"]<>"\n     meta: "<>opt["internal"]["pretty_print_meta"]<>"\nparameter: "<>opt["internal"]["pretty_print_parameter"];
