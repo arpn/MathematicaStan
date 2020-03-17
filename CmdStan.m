@@ -210,7 +210,7 @@ CompileStanCode::usage = "CompileStanCode[stanCodeFileName_String,opts] generate
 Options[CompileStanCode] = {StanVerbose -> True};
 
 CompileStanCode[stanCodeFileName_String, opts : OptionsPattern[]] :=
-	Module[{command, stanExecFileName, tmpFile, verbose, runprocessResult},
+	Module[{command, stanExecFileName, verbose, runprocessResult},
 	       
 	       If[Not@CheckFileNameExtensionQ[stanCodeFileName, "stan"], Return[$Failed]];
 	       
@@ -375,7 +375,7 @@ SetStanOption[opt_StanOptions, optionString_String, value_] := setStanOption[opt
 removeStanOption[StanOptions[org_Association], {oneKey_}]:=StanOptions[KeyDrop[org,oneKey]];
 
 removeStanOption[StanOptions[org_Association], {keys__,last_}]:=
-	Module[{extracted,buffer,indices},
+	Module[{buffer,indices},
 	       If[StanOptionExistsQ[StanOptions[org], {keys,last}]===False,Return[StanOptions[org]]]; (* nothing to do the key path does not exist *)
 	       buffer=org;
 	       indices=Riffle[{keys},ConstantArray[2,Length[{keys}]]];
@@ -437,7 +437,7 @@ RunStan::usage="RunStan[stanFileName_String, stanOption_StanOptions, opts : Opti
 Options[RunStan] = {StanVerbose -> True};
 
 RunStan[stanFileName_String, stanOption_StanOptions, opts : OptionsPattern[]] :=
-  	Module[{pathExecFileName, mutableOption, command, output, verbose, runprocessResult },
+  	Module[{pathExecFileName, mutableOption, command, verbose, runprocessResult },
    	       (* Generate Executable file name (absolute path) 
    		*)
    	       pathExecFileName = generateStanExecFileName[stanFileName];
@@ -469,7 +469,7 @@ RunStan[stanFileName_String, stanOption_StanOptions, opts : OptionsPattern[]] :=
 
 (* TODO: pour l'instant rien fait.... s'inspirer de RunStanOptimize etc...*)
 RunStanSample[stanFileName_String,NJobs_/; NumberQ[NJobs] && (NJobs > 0)]:=
-	Module[{id,i,pathExecFileName,mutableOption,bufferMutableOption,shellScript="",finalOutputFileName,finalOutputFileNameID,output},
+	Module[{id,pathExecFileName,mutableOption,bufferMutableOption,shellScript="",finalOutputFileName,finalOutputFileNameID,output},
 
 	       (* Initialize with user stanOption  *)
 	       mutableOption=Join[immutableStanOptionSample,StanOptionSample[]];
