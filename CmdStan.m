@@ -3,7 +3,7 @@
 (* :Title: MathematicaStan, a MMA interface to CmdStan *)
 (* :Context: CmdStan` *)
 (* :Author: Vincent Picaud *)
-(* :Date: 2019 *)
+(* :Date: 2020 *)
 (* :Package Version: 2.0 *)
 (* :Mathematica Version: 11+ *)
 (* :Keywords: Stan, CmdStan, Bayesian *)
@@ -73,6 +73,7 @@ ExportStanData;
 
 RunStan;
 RunStanSample;
+StanSummary;
 
 
 StanResult;
@@ -565,6 +566,31 @@ runStanSample[stanFileName_String, stanOption_StanOptions:SampleDefaultOptions, 
               GetStanOption[processArgs[[1,2]], "output.file"]
            ]
     ];
+
+
+(* ::Subchapter:: *)
+(*Stan Summary*)
+
+
+StanSummary::usage="StanSummary[outputCSV_String] summarizes samples stored in the csv file.
+StanSummary[outputCSVList_List] summarizes samples of multiple chains.
+StanSummary[stanResult_StanResult] summarizes samples stored in a StanResult structure.";
+
+Options[StanSummary] = {StanVerbose -> True};
+
+StanSummary[outputCSV_String, opts : OptionsPattern[]]:=StanSummary[{outputCSV}, opts];
+
+StanSummary[outputCSVList_List, opts : OptionsPattern[]]:=
+	Module[{command, verbose, runprocessResult},
+           command = FileNameJoin[{GetCmdStanDirectory[], "bin", If[$OperatingSystem == "Windows", "stansummary.exe", "stansummary"]}];
+           command = {command, Sequence@@outputCSVList};
+           verbose = OptionValue[StanVerbose];
+           If[verbose, Print["Running: ", StringRiffle[command, " "]]];
+           runprocessResult = RunProcess[command];
+           runprocessResult["StandardOutput"]
+	];
+
+StanSummary[stanResult_StanResult, opts : OptionsPattern[]]:=StanSummary[First[stanResult]["filename"], opts];
 
 
 (* ::Chapter:: *)
