@@ -498,7 +498,9 @@ generateFullOptions[stanFileName_String, stanOption_StanOptions, pid_Integer:0]:
               (* Generate Output file name *)
               mutableOption = completeStanOptionWithOutputFileName[stanFileName, mutableOption, pid];
            {pathExecFileName, mutableOption}
-    ]
+    ];
+
+lastOrEmpty[x_List]:=If[Length[x]>0,Last[x],x];
 
 runStanSample[stanFileName_String, stanOption_StanOptions:SampleDefaultOptions, chains_Integer, printStdout_?BooleanQ]:=
     Module[{processArgs, processes, output, i, tmp, chainList, refreshInterval=0.05},
@@ -527,14 +529,15 @@ runStanSample[stanFileName_String, stanOption_StanOptions:SampleDefaultOptions, 
                  ];
                  (* Update progress. *)
                  If[chains > 1,
-                    status = Map[Last@*Select[progressLineQ], output];
+                    status = Map[lastOrEmpty@*Select[progressLineQ], output];
                     status = MapThread[StringJoin, {chainList, status}];
                     status = TableForm@status,
-                    status = Last@Select[progressLineQ]@output[[1]]
+                    status = lastOrEmpty@Select[progressLineQ]@output[[1]]
                  ];
                  (* Sleep. *)
                  Pause[refreshInterval];
            ];
+
            (* Collect rest of the output *)
            For[i = 1, i <= chains, i = i+1,
                tmp  = ReadString[processes[[i]], EndOfBuffer];
